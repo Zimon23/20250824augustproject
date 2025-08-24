@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -7,12 +7,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     STREAMLIT_SERVER_PORT=8501 \
     STREAMLIT_BROWSER_GATHERUSAGESTATS=false
 
+# 기존 PATH 유지 + appuser 로컬 bin만 추가
+ENV PATH="/home/appuser/.local/bin:${PATH}"
+
 WORKDIR /app
 
-# 빌드 도구(일부 패키지 컴파일 대비)
-# 권장: 한 블록으로 병합
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libgomp1 \
+    libgomp1 build-essential adduser \
  && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/
@@ -20,9 +21,11 @@ RUN python -m pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . /app
 
-# 모델/로그 저장 위치 권한
-RUN useradd -m appuser && mkdir -p /app/models && chown -R appuser:appuser /app
+# adduser는 /usr/sbin에 있으므로 절대경로로 호출
+RUN /usr/sbin/adduser --disabled-password --gecos "" appuser && \
+    mkdir -p /app/models && chown -R appuser:appuser /app
+
 USER appuser
 
 EXPOSE 8501
-CMD ["streamlit", "run", "app.py"]
+CMD ["python", "-m", "streamlit", "run", "app.py", "--server.address=0.0.0.0", "--server.port=8501"]
